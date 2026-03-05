@@ -15,7 +15,7 @@ import {
   Users, CalendarCheck, FolderOpen, Clock, MessageSquare,
   Plus, FileText, X, Check, Bold, Italic, Underline, List,
   AlignLeft, AlignCenter, AlignRight, Save, UserPlus, Megaphone,
-  Search, Trash2
+  Search, Trash2, Pencil, CheckSquare, AlertTriangle, Activity
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +52,10 @@ const AdminPortal = () => {
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
   const [records, setRecords] = useState<any[]>([]);
+
+  /* Edit patient state */
+  const [showEditPatient, setShowEditPatient] = useState(false);
+  const [editPatient, setEditPatient] = useState<any>(null);
 
   /* Add patient modal state */
   const [showAddPatient, setShowAddPatient] = useState(false);
@@ -156,7 +160,63 @@ const AdminPortal = () => {
     }
   };
 
-  /* Check if grade is SHS (11 or 12) */
+  /* Delete patient */
+  const handleDeletePatient = async (id: string) => {
+    const { error } = await supabase.from("patients").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Patient Deleted" });
+      loadData();
+    }
+  };
+
+  /* Open edit patient dialog */
+  const openEditPatient = (p: any) => {
+    setEditPatient({ ...p });
+    setShowEditPatient(true);
+  };
+
+  /* Save edited patient */
+  const handleEditPatient = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editPatient) return;
+    const { id, created_at, ...updateData } = editPatient;
+    const { error } = await supabase.from("patients").update(updateData).eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Patient Updated!" });
+      setShowEditPatient(false);
+      loadData();
+    }
+  };
+
+  /* Get initials from name */
+  const getInitials = (name: string) => {
+    const parts = name.split(" ").filter(Boolean);
+    if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+    return name.substring(0, 2).toUpperCase();
+  };
+
+  /* Avatar color based on name */
+  const getAvatarColor = (name: string) => {
+    const colors = [
+      "bg-emerald-700", "bg-blue-700", "bg-orange-600", "bg-purple-700",
+      "bg-teal-700", "bg-rose-700", "bg-indigo-700", "bg-amber-700"
+    ];
+    let hash = 0;
+    for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+    return colors[Math.abs(hash) % colors.length];
+  };
+
+  /* BMI stats */
+  const bmiStats = {
+    total: patients.length,
+    normal: patients.filter(p => p.bmi_status?.toLowerCase() === "normal").length,
+    overweight: patients.filter(p => p.bmi_status?.toLowerCase() === "overweight").length,
+    underweight: patients.filter(p => p.bmi_status?.toLowerCase() === "underweight").length,
+  };
   const isSHS = (grade: string) => grade === "11" || grade === "12";
 
   /* Add new patient */
@@ -274,41 +334,95 @@ const AdminPortal = () => {
         {/* ===== PATIENTS ===== */}
         {activeSection === "Patient" && (
           <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-bold text-foreground">Patients</h2>
-              <Button onClick={() => setShowAddPatient(true)}>
-                <UserPlus className="w-4 h-4 mr-2" /> Add Patient
-              </Button>
+            {/* Header row */}
+            <div className="flex items-center justify-between mb-2">
+              <div>
+                <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
+                  <Users className="w-6 h-6" /> Patients
+                </h2>
+                <p className="text-sm text-muted-foreground">Manage patient health profiles. Up to 50 patients.</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+                  <Input placeholder="Search patients..." value={patientSearch} onChange={(e) => setPatientSearch(e.target.value)} className="pl-10 w-56" />
+                </div>
+                <Button onClick={() => setShowAddPatient(true)}>
+                  <Plus className="w-4 h-4 mr-2" /> Add Patient
+                </Button>
+              </div>
             </div>
 
-            {/* Search bar */}
-            <div className="relative mb-6 max-w-md">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by name, LRN, or grade..."
-                value={patientSearch}
-                onChange={(e) => setPatientSearch(e.target.value)}
-                className="pl-10"
-              />
+            {/* Stats cards */}
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 mt-4">
+              <div className="bg-card rounded-lg border border-border p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Patients</p>
+                <p className="text-3xl font-bold text-foreground mt-1">{bmiStats.total}</p>
+                <Users className="w-8 h-8 text-muted-foreground/30 ml-auto -mt-6" />
+              </div>
+              <div className="bg-card rounded-lg border border-border p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Normal BMI</p>
+                <p className="text-3xl font-bold text-primary mt-1">{bmiStats.normal}</p>
+                <CheckSquare className="w-8 h-8 text-muted-foreground/30 ml-auto -mt-6" />
+              </div>
+              <div className="bg-card rounded-lg border border-border p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Overweight</p>
+                <p className="text-3xl font-bold text-orange-500 mt-1">{bmiStats.overweight}</p>
+                <AlertTriangle className="w-8 h-8 text-muted-foreground/30 ml-auto -mt-6" />
+              </div>
+              <div className="bg-card rounded-lg border border-border p-4">
+                <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Underweight</p>
+                <p className="text-3xl font-bold text-blue-500 mt-1">{bmiStats.underweight}</p>
+                <Activity className="w-8 h-8 text-muted-foreground/30 ml-auto -mt-6" />
+              </div>
             </div>
 
             {/* Patient cards grid */}
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filteredPatients.map((p) => (
-                <div key={p.id} className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow">
-                  <h3 className="font-semibold text-card-foreground text-lg mb-2">{p.full_name}</h3>
-                  <div className="space-y-1 text-sm text-muted-foreground">
-                    <p><span className="font-medium text-card-foreground">LRN:</span> {p.lrn}</p>
-                    <p><span className="font-medium text-card-foreground">Grade:</span> {p.grade}</p>
-                    <p><span className="font-medium text-card-foreground">Height:</span> {p.height}</p>
-                    <p><span className="font-medium text-card-foreground">Weight:</span> {p.weight}</p>
-                    <p><span className="font-medium text-card-foreground">BMI:</span> {p.bmi_status}</p>
-                    <p><span className="font-medium text-card-foreground">History:</span> {p.medical_history || "None"}</p>
-                    <p><span className="font-medium text-card-foreground">Clinic Exposure:</span> {p.clinic_exposure || "None"}</p>
-                    <hr className="my-2 border-border" />
-                    <p><span className="font-medium text-card-foreground">Email:</span> {p.email || "—"}</p>
-                    <p><span className="font-medium text-card-foreground">Address:</span> {p.home_address || "—"}</p>
-                    <p><span className="font-medium text-card-foreground">Contact:</span> {p.contact_no || "—"}</p>
+                <div key={p.id} className="bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow">
+                  <div className="flex items-center gap-3 mb-4">
+                    <div className={`w-10 h-10 rounded-full ${getAvatarColor(p.full_name)} flex items-center justify-center text-white text-sm font-bold shrink-0`}>
+                      {getInitials(p.full_name)}
+                    </div>
+                    <div className="min-w-0">
+                      <p className="font-semibold text-card-foreground text-sm truncate">{p.full_name}</p>
+                      <p className="text-xs text-muted-foreground">LRN: {p.lrn}</p>
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-xs mb-4">
+                    <div>
+                      <p className="text-muted-foreground uppercase font-semibold tracking-wider" style={{ fontSize: '10px' }}>Grade/Section</p>
+                      <p className="text-card-foreground font-medium">{p.grade}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground uppercase font-semibold tracking-wider" style={{ fontSize: '10px' }}>BMI Status</p>
+                      <p className="text-card-foreground font-medium">{p.bmi_status || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground uppercase font-semibold tracking-wider" style={{ fontSize: '10px' }}>Height</p>
+                      <p className="text-card-foreground font-medium">{p.height || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground uppercase font-semibold tracking-wider" style={{ fontSize: '10px' }}>Weight</p>
+                      <p className="text-card-foreground font-medium">{p.weight || "—"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground uppercase font-semibold tracking-wider" style={{ fontSize: '10px' }}>Med History</p>
+                      <p className="text-card-foreground font-medium">{p.medical_history || "None"}</p>
+                    </div>
+                    <div>
+                      <p className="text-muted-foreground uppercase font-semibold tracking-wider" style={{ fontSize: '10px' }}>Clinic Exposure</p>
+                      <p className="text-card-foreground font-medium">{p.clinic_exposure || "None"}</p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2 pt-2 border-t border-border">
+                    <Button size="sm" variant="outline" className="flex-1 text-xs" onClick={() => openEditPatient(p)}>
+                      <Pencil className="w-3 h-3 mr-1" /> Edit
+                    </Button>
+                    <Button size="sm" variant="destructive" className="flex-1 text-xs" onClick={() => handleDeletePatient(p.id)}>
+                      <Trash2 className="w-3 h-3 mr-1" /> Delete
+                    </Button>
                   </div>
                 </div>
               ))}
@@ -317,9 +431,7 @@ const AdminPortal = () => {
             {/* Add Patient Dialog */}
             <Dialog open={showAddPatient} onOpenChange={setShowAddPatient}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
-                <DialogHeader>
-                  <DialogTitle>Add New Patient</DialogTitle>
-                </DialogHeader>
+                <DialogHeader><DialogTitle>Add New Patient</DialogTitle></DialogHeader>
                 <form onSubmit={handleAddPatient} className="space-y-4">
                   <div>
                     <label className="block text-sm font-medium mb-1">Full Name</label>
@@ -329,46 +441,30 @@ const AdminPortal = () => {
                     <label className="block text-sm font-medium mb-1">LRN</label>
                     <Input value={newPatient.lrn} onChange={(e) => setNewPatient({ ...newPatient, lrn: e.target.value })} required />
                   </div>
-
-                  {/* Grade dropdown (7-12) */}
                   <div>
                     <label className="block text-sm font-medium mb-1">Grade</label>
                     <Select value={newPatient.grade} onValueChange={(v) => setNewPatient({ ...newPatient, grade: v, strand: "" })}>
                       <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
                       <SelectContent>
-                        {["7", "8", "9", "10", "11", "12"].map((g) => (
-                          <SelectItem key={g} value={g}>Grade {g}</SelectItem>
-                        ))}
+                        {["7", "8", "9", "10", "11", "12"].map((g) => (<SelectItem key={g} value={g}>Grade {g}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
-
-                  {/* Strand dropdown (only for grade 11-12) */}
                   {isSHS(newPatient.grade) && (
                     <div>
                       <label className="block text-sm font-medium mb-1">Strand</label>
                       <Select value={newPatient.strand} onValueChange={(v) => setNewPatient({ ...newPatient, strand: v })}>
                         <SelectTrigger><SelectValue placeholder="Select strand" /></SelectTrigger>
                         <SelectContent>
-                          {strands.map((s) => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
-                          ))}
+                          {strands.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>
                   )}
-
-                  {/* Section - free text */}
                   <div>
                     <label className="block text-sm font-medium mb-1">Section</label>
-                    <Input
-                      placeholder="e.g. THALES"
-                      value={newPatient.section}
-                      onChange={(e) => setNewPatient({ ...newPatient, section: e.target.value })}
-                      required
-                    />
+                    <Input placeholder="e.g. THALES" value={newPatient.section} onChange={(e) => setNewPatient({ ...newPatient, section: e.target.value })} required />
                   </div>
-
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">Height</label>
@@ -379,7 +475,6 @@ const AdminPortal = () => {
                       <Input placeholder="e.g. 59kg" value={newPatient.weight} onChange={(e) => setNewPatient({ ...newPatient, weight: e.target.value })} />
                     </div>
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium mb-1">BMI Status</label>
                     <Select value={newPatient.bmi_status} onValueChange={(v) => setNewPatient({ ...newPatient, bmi_status: v })}>
@@ -392,7 +487,6 @@ const AdminPortal = () => {
                       </SelectContent>
                     </Select>
                   </div>
-
                   <div>
                     <label className="block text-sm font-medium mb-1">Medical History</label>
                     <Input placeholder="e.g. Asthma" value={newPatient.medical_history} onChange={(e) => setNewPatient({ ...newPatient, medical_history: e.target.value })} />
@@ -401,11 +495,74 @@ const AdminPortal = () => {
                     <label className="block text-sm font-medium mb-1">Clinic Exposure</label>
                     <Input placeholder="e.g. yes 3 times" value={newPatient.clinic_exposure} onChange={(e) => setNewPatient({ ...newPatient, clinic_exposure: e.target.value })} />
                   </div>
-
-                  <DialogFooter>
-                    <Button type="submit">Add Patient</Button>
-                  </DialogFooter>
+                  <DialogFooter><Button type="submit">Add Patient</Button></DialogFooter>
                 </form>
+              </DialogContent>
+            </Dialog>
+
+            {/* Edit Patient Dialog */}
+            <Dialog open={showEditPatient} onOpenChange={setShowEditPatient}>
+              <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
+                <DialogHeader><DialogTitle>Edit Patient</DialogTitle></DialogHeader>
+                {editPatient && (
+                  <form onSubmit={handleEditPatient} className="space-y-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Full Name</label>
+                      <Input value={editPatient.full_name} onChange={(e) => setEditPatient({ ...editPatient, full_name: e.target.value })} required />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">LRN</label>
+                      <Input value={editPatient.lrn || ""} onChange={(e) => setEditPatient({ ...editPatient, lrn: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Grade/Section</label>
+                      <Input value={editPatient.grade || ""} onChange={(e) => setEditPatient({ ...editPatient, grade: e.target.value })} />
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Height</label>
+                        <Input value={editPatient.height || ""} onChange={(e) => setEditPatient({ ...editPatient, height: e.target.value })} />
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Weight</label>
+                        <Input value={editPatient.weight || ""} onChange={(e) => setEditPatient({ ...editPatient, weight: e.target.value })} />
+                      </div>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">BMI Status</label>
+                      <Select value={editPatient.bmi_status || ""} onValueChange={(v) => setEditPatient({ ...editPatient, bmi_status: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select BMI status" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="Underweight">Underweight</SelectItem>
+                          <SelectItem value="Normal">Normal</SelectItem>
+                          <SelectItem value="Overweight">Overweight</SelectItem>
+                          <SelectItem value="Obese">Obese</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Medical History</label>
+                      <Input value={editPatient.medical_history || ""} onChange={(e) => setEditPatient({ ...editPatient, medical_history: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Clinic Exposure</label>
+                      <Input value={editPatient.clinic_exposure || ""} onChange={(e) => setEditPatient({ ...editPatient, clinic_exposure: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Email</label>
+                      <Input value={editPatient.email || ""} onChange={(e) => setEditPatient({ ...editPatient, email: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Home Address</label>
+                      <Input value={editPatient.home_address || ""} onChange={(e) => setEditPatient({ ...editPatient, home_address: e.target.value })} />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Contact No.</label>
+                      <Input value={editPatient.contact_no || ""} onChange={(e) => setEditPatient({ ...editPatient, contact_no: e.target.value })} />
+                    </div>
+                    <DialogFooter><Button type="submit">Save Changes</Button></DialogFooter>
+                  </form>
+                )}
               </DialogContent>
             </Dialog>
           </div>
