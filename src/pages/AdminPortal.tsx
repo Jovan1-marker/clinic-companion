@@ -32,6 +32,13 @@ import {
 /* Strands for SHS (Grade 11-12) */
 const strands = ["ICT", "GAS", "HUMSS", "STEM", "ABM"];
 
+/* Available sections */
+const sections = [
+  "THALES", "EUCLID", "PYTHAGORAS", "ARCHIMEDES", "EINSTEIN",
+  "NEWTON", "GALILEO", "CURIE", "DARWIN", "PASCAL",
+  "DESCARTES", "FIBONACCI", "KEPLER", "FERMAT", "GAUSS"
+];
+
 const AdminPortal = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -171,9 +178,24 @@ const AdminPortal = () => {
     }
   };
 
-  /* Open edit patient dialog */
+  /* Open edit patient dialog – parse grade string into parts */
   const openEditPatient = (p: any) => {
-    setEditPatient({ ...p });
+    // Parse "11 ICT - THALES" or "7 - THALES" format
+    const gradeStr = p.grade || "";
+    let _grade = "", _strand = "", _section = "";
+    const shsMatch = gradeStr.match(/^(\d+)\s+(\w+)\s*-\s*(.+)$/);
+    const jhsMatch = gradeStr.match(/^(\d+)\s*-\s*(.+)$/);
+    if (shsMatch) {
+      _grade = shsMatch[1];
+      _strand = shsMatch[2];
+      _section = shsMatch[3].trim();
+    } else if (jhsMatch) {
+      _grade = jhsMatch[1];
+      _section = jhsMatch[2].trim();
+    } else {
+      _grade = gradeStr;
+    }
+    setEditPatient({ ...p, _grade, _strand, _section });
     setShowEditPatient(true);
   };
 
@@ -181,7 +203,11 @@ const AdminPortal = () => {
   const handleEditPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPatient) return;
-    const { id, created_at, ...updateData } = editPatient;
+    const { id, created_at, _grade, _strand, _section, ...rest } = editPatient;
+    const gradeDisplay = _strand
+      ? `${_grade} ${_strand} - ${_section}`
+      : `${_grade} - ${_section}`;
+    const updateData = { ...rest, grade: gradeDisplay };
     const { error } = await supabase.from("patients").update(updateData).eq("id", id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -463,7 +489,12 @@ const AdminPortal = () => {
                   )}
                   <div>
                     <label className="block text-sm font-medium mb-1">Section</label>
-                    <Input placeholder="e.g. THALES" value={newPatient.section} onChange={(e) => setNewPatient({ ...newPatient, section: e.target.value })} required />
+                    <Select value={newPatient.section} onValueChange={(v) => setNewPatient({ ...newPatient, section: v })}>
+                      <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                      <SelectContent>
+                        {sections.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                      </SelectContent>
+                    </Select>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div>
@@ -515,8 +546,33 @@ const AdminPortal = () => {
                       <Input value={editPatient.lrn || ""} onChange={(e) => setEditPatient({ ...editPatient, lrn: e.target.value })} />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Grade/Section</label>
-                      <Input value={editPatient.grade || ""} onChange={(e) => setEditPatient({ ...editPatient, grade: e.target.value })} />
+                      <label className="block text-sm font-medium mb-1">Grade</label>
+                      <Select value={editPatient._grade || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _grade: v, _strand: isSHS(v) ? (editPatient._strand || "") : "" })}>
+                        <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
+                        <SelectContent>
+                          {["7", "8", "9", "10", "11", "12"].map((g) => (<SelectItem key={g} value={g}>Grade {g}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    {isSHS(editPatient._grade || "") && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Strand</label>
+                        <Select value={editPatient._strand || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _strand: v })}>
+                          <SelectTrigger><SelectValue placeholder="Select strand" /></SelectTrigger>
+                          <SelectContent>
+                            {strands.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Section</label>
+                      <Select value={editPatient._section || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _section: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                        <SelectContent>
+                          {sections.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
