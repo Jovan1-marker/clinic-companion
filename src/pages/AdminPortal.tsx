@@ -1,3 +1,12 @@
+/**
+ * Admin Portal
+ * Dashboard for clinic administrators to manage:
+ * - Patients (grid of cards, add new patient with grade/strand/section)
+ * - Appointments (approve with calendar popup, auto-waitlist after 5)
+ * - Waitlist (overflow appointments)
+ * - Records (Google Docs-like file manager with rich text editor)
+ * - Feedback (view student comments)
+ */
 import { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,6 +29,7 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
 
+/* Strands for SHS (Grade 11-12) */
 const strands = ["ICT", "GAS", "HUMSS", "STEM", "ABM"];
 
 const AdminPortal = () => {
@@ -27,22 +37,27 @@ const AdminPortal = () => {
   const { toast } = useToast();
   const [activeSection, setActiveSection] = useState("Patient");
 
+  /* Data state */
   const [patients, setPatients] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [waitlist, setWaitlist] = useState<any[]>([]);
   const [feedback, setFeedback] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
 
+  /* Patient search */
   const [patientSearch, setPatientSearch] = useState("");
 
+  /* Announcement form */
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
   const [records, setRecords] = useState<any[]>([]);
 
+  /* Edit patient state */
   const [showEditPatient, setShowEditPatient] = useState(false);
   const [editPatient, setEditPatient] = useState<any>(null);
 
+  /* Add patient modal state */
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [newPatient, setNewPatient] = useState({
     full_name: "", lrn: "", grade: "", strand: "", section: "",
@@ -50,14 +65,17 @@ const AdminPortal = () => {
     clinic_exposure: "", email: "", home_address: "", contact_no: ""
   });
 
+  /* Calendar approval dialog */
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [approvingId, setApprovingId] = useState<string | null>(null);
 
+  /* Record editor state */
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [recordTitle, setRecordTitle] = useState("");
   const editorRef = useRef<HTMLDivElement>(null);
 
+  /* Sidebar links */
   const sidebarLinks = [
     { label: "Patient", icon: Users, onClick: () => setActiveSection("Patient") },
     { label: "Appointment", icon: CalendarCheck, onClick: () => setActiveSection("Appointment") },
@@ -67,23 +85,29 @@ const AdminPortal = () => {
     { label: "Announcements", icon: Megaphone, onClick: () => setActiveSection("Announcements") },
   ];
 
+  /* Check if grade is SHS (11-12) */
   const isSHS = (grade: string) => grade === "11" || grade === "12";
 
+  /* Check admin auth and load all data */
   useEffect(() => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/login"); return; }
+
       const { data: prof } = await supabase
         .from("profiles")
         .select("role")
         .eq("id", user.id)
         .maybeSingle();
+
       if (prof?.role !== "admin") { navigate("/login"); return; }
+
       loadData();
     };
     init();
   }, [navigate]);
 
+  /* Load all data from Supabase */
   const loadData = async () => {
     const [pRes, aRes, wRes, fRes, rRes, annRes] = await Promise.all([
       supabase.from("patients").select("*").order("full_name"),
@@ -101,6 +125,7 @@ const AdminPortal = () => {
     if (annRes.data) setAnnouncements(annRes.data);
   };
 
+  /* Filtered patients based on search */
   const filteredPatients = patients.filter((p) => {
     const q = patientSearch.toLowerCase();
     return (
@@ -110,6 +135,7 @@ const AdminPortal = () => {
     );
   });
 
+  /* Add announcement */
   const handleAddAnnouncement = async (e: React.FormEvent) => {
     e.preventDefault();
     const { error } = await supabase.from("announcements").insert({
@@ -127,6 +153,7 @@ const AdminPortal = () => {
     }
   };
 
+  /* Delete announcement */
   const handleDeleteAnnouncement = async (id: string) => {
     const { error } = await supabase.from("announcements").delete().eq("id", id);
     if (error) {
@@ -136,6 +163,7 @@ const AdminPortal = () => {
     }
   };
 
+  /* Delete patient */
   const handleDeletePatient = async (id: string) => {
     const { error } = await supabase.from("patients").delete().eq("id", id);
     if (error) {
@@ -146,7 +174,9 @@ const AdminPortal = () => {
     }
   };
 
+  /* Open edit patient dialog – parse grade string into parts */
   const openEditPatient = (p: any) => {
+    // Parse "11 ICT - THALES" or "7 - THALES" format
     const gradeStr = p.grade || "";
     let _grade = "", _strand = "", _section = "";
     const shsMatch = gradeStr.match(/^(\d+)\s+(\w+)\s*-\s*(.+)$/);
@@ -165,6 +195,7 @@ const AdminPortal = () => {
     setShowEditPatient(true);
   };
 
+  /* Save edited patient */
   const handleEditPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPatient) return;
@@ -183,12 +214,14 @@ const AdminPortal = () => {
     }
   };
 
+  /* Get initials from name */
   const getInitials = (name: string) => {
     const parts = name.split(" ").filter(Boolean);
     if (parts.length >= 2) return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
     return name.substring(0, 2).toUpperCase();
   };
 
+  /* Avatar color based on name */
   const getAvatarColor = (name: string) => {
     const colors = [
       "bg-emerald-700", "bg-blue-700", "bg-orange-600", "bg-purple-700",
@@ -199,6 +232,7 @@ const AdminPortal = () => {
     return colors[Math.abs(hash) % colors.length];
   };
 
+  /* BMI stats */
   const bmiStats = {
     total: patients.length,
     normal: patients.filter(p => p.bmi_status?.toLowerCase() === "normal").length,
@@ -206,15 +240,18 @@ const AdminPortal = () => {
     underweight: patients.filter(p => p.bmi_status?.toLowerCase() === "underweight").length,
   };
 
+  /* Add new patient */
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     const gradeDisplay = newPatient.strand
       ? `${newPatient.grade} ${newPatient.strand} - ${newPatient.section}`
       : `${newPatient.grade} - ${newPatient.section}`;
+
     const { error } = await supabase.from("patients").insert({
       ...newPatient,
       grade: gradeDisplay,
     });
+
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -229,19 +266,25 @@ const AdminPortal = () => {
     }
   };
 
+  /* Open calendar dialog to approve appointment */
   const handleApproveClick = (appointmentId: string) => {
     setApprovingId(appointmentId);
     setSelectedDate(undefined);
     setShowCalendar(true);
   };
 
+  /* Confirm approval with selected date */
   const confirmApproval = async () => {
     if (!approvingId || !selectedDate) return;
+
+    /* Count currently approved appointments */
     const { count } = await supabase
       .from("appointments")
       .select("*", { count: "exact", head: true })
       .eq("status", "approved");
+
     const status = (count || 0) >= 5 ? "waitlisted" : "approved";
+
     const { error } = await supabase
       .from("appointments")
       .update({
@@ -249,6 +292,7 @@ const AdminPortal = () => {
         scheduled_date: selectedDate.toISOString(),
       })
       .eq("id", approvingId);
+
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -263,11 +307,13 @@ const AdminPortal = () => {
     }
   };
 
+  /* Create a new medical record */
   const handleCreateRecord = async () => {
     const { data, error } = await supabase.from("records").insert({
       title: "Untitled Document",
       content: "",
     }).select().single();
+
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -277,13 +323,16 @@ const AdminPortal = () => {
     }
   };
 
+  /* Save record content */
   const handleSaveRecord = async () => {
     if (!editingRecord) return;
     const content = editorRef.current?.innerHTML || "";
+
     const { error } = await supabase
       .from("records")
       .update({ title: recordTitle, content })
       .eq("id", editingRecord.id);
+
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
     } else {
@@ -292,6 +341,7 @@ const AdminPortal = () => {
     }
   };
 
+  /* Rich text formatting commands */
   const execCommand = (command: string, value?: string) => {
     document.execCommand(command, false, value);
     editorRef.current?.focus();
@@ -300,11 +350,12 @@ const AdminPortal = () => {
   return (
     <div className="flex min-h-screen">
       <ClinicSidebar links={sidebarLinks} title="Admin Portal" activeLink={activeSection} />
-      <main className="flex-1 bg-background p-8 overflow-auto">
 
+      <main className="flex-1 bg-background p-8 overflow-auto">
+        {/* ===== PATIENTS ===== */}
         {activeSection === "Patient" && (
           <div>
-
+            {/* Header row */}
             <div className="flex items-center justify-between mb-2">
               <div>
                 <h2 className="text-2xl font-bold text-foreground flex items-center gap-2">
@@ -323,6 +374,7 @@ const AdminPortal = () => {
               </div>
             </div>
 
+            {/* Stats cards */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 mt-4">
               <div className="bg-card rounded-lg border border-border p-4">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Patients</p>
@@ -346,6 +398,7 @@ const AdminPortal = () => {
               </div>
             </div>
 
+            {/* Patient cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filteredPatients.map((p) => (
                 <div key={p.id} className="bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow">
@@ -396,6 +449,7 @@ const AdminPortal = () => {
               ))}
             </div>
 
+            {/* Add Patient Dialog */}
             <Dialog open={showAddPatient} onOpenChange={setShowAddPatient}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Add New Patient</DialogTitle></DialogHeader>
@@ -408,6 +462,8 @@ const AdminPortal = () => {
                     <label className="block text-sm font-medium mb-1">LRN</label>
                     <Input value={newPatient.lrn} onChange={(e) => setNewPatient({ ...newPatient, lrn: e.target.value })} required />
                   </div>
+
+                  {/* Grade Dropdown */}
                   <div>
                     <label className="block text-sm font-medium mb-1">Grade</label>
                     <Select value={newPatient.grade} onValueChange={(v) => setNewPatient({ ...newPatient, grade: v, strand: "", section: "" })}>
@@ -417,6 +473,8 @@ const AdminPortal = () => {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Strand Dropdown (only for grades 11-12) */}
                   {isSHS(newPatient.grade) && (
                     <div>
                       <label className="block text-sm font-medium mb-1">Strand</label>
@@ -428,16 +486,21 @@ const AdminPortal = () => {
                       </Select>
                     </div>
                   )}
+
+                  {/* Section Dropdown/Input (for all grades, but label changes) */}
                   {newPatient.grade && (
                     <div>
-                      <label className="block text-sm font-medium mb-1">Section</label>
+                      <label className="block text-sm font-medium mb-1">
+                        {isSHS(newPatient.grade) ? "Section" : "Section"}
+                      </label>
                       <Input
                         value={newPatient.section}
                         onChange={(e) => setNewPatient({ ...newPatient, section: e.target.value })}
                         placeholder="e.g. THALES, EUCLID, or custom name"
-                      />
+                        />
                     </div>
                   )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">Height</label>
@@ -473,6 +536,7 @@ const AdminPortal = () => {
               </DialogContent>
             </Dialog>
 
+            {/* Edit Patient Dialog */}
             <Dialog open={showEditPatient} onOpenChange={setShowEditPatient}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Edit Patient</DialogTitle></DialogHeader>
@@ -486,6 +550,8 @@ const AdminPortal = () => {
                       <label className="block text-sm font-medium mb-1">LRN</label>
                       <Input value={editPatient.lrn || ""} onChange={(e) => setEditPatient({ ...editPatient, lrn: e.target.value })} />
                     </div>
+
+                    {/* Grade Dropdown */}
                     <div>
                       <label className="block text-sm font-medium mb-1">Grade</label>
                       <Select value={editPatient._grade || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _grade: v, _strand: "" })}>
@@ -495,6 +561,8 @@ const AdminPortal = () => {
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Strand Dropdown (only for grades 11-12) */}
                     {isSHS(editPatient._grade || "") && (
                       <div>
                         <label className="block text-sm font-medium mb-1">Strand</label>
@@ -506,16 +574,19 @@ const AdminPortal = () => {
                         </Select>
                       </div>
                     )}
+
+                    {/* Section - Text Input for Admin Panel */}
                     {editPatient._grade && (
                       <div>
                         <label className="block text-sm font-medium mb-1">Section</label>
                         <Input
                           value={editPatient._section || ""}
                           onChange={(e) => setEditPatient({ ...editPatient, _section: e.target.value })}
-                          placeholder="e.g. THALES, custom section name"
+                          placeholder="e.g. THALES, EUCLID, or custom name"
                         />
                       </div>
                     )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-1">Height</label>
@@ -566,6 +637,7 @@ const AdminPortal = () => {
           </div>
         )}
 
+        {/* ===== APPOINTMENTS ===== */}
         {activeSection === "Appointment" && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-6">Pending Appointments</h2>
@@ -606,6 +678,8 @@ const AdminPortal = () => {
                 </table>
               </div>
             )}
+
+            {/* Calendar Approval Dialog */}
             <Dialog open={showCalendar} onOpenChange={setShowCalendar}>
               <DialogContent>
                 <DialogHeader>
@@ -629,9 +703,11 @@ const AdminPortal = () => {
           </div>
         )}
 
+        {/* ===== RECORDS (Google Docs-like) ===== */}
         {activeSection === "Record" && (
           <div>
             {editingRecord ? (
+              /* ---- Rich Text Editor ---- */
               <div className="record-editor">
                 <div className="flex items-center justify-between mb-4">
                   <Input
@@ -649,6 +725,8 @@ const AdminPortal = () => {
                     </Button>
                   </div>
                 </div>
+
+                {/* Toolbar */}
                 <div className="bg-card border border-border rounded-t-lg p-2 flex gap-1 flex-wrap">
                   <button onClick={() => execCommand("bold")} className="p-2 rounded hover:bg-secondary"><Bold className="w-4 h-4" /></button>
                   <button onClick={() => execCommand("italic")} className="p-2 rounded hover:bg-secondary"><Italic className="w-4 h-4" /></button>
@@ -673,6 +751,8 @@ const AdminPortal = () => {
                     <option value="h3">Heading 3</option>
                   </select>
                 </div>
+
+                {/* Editable content area */}
                 <div
                   ref={editorRef}
                   contentEditable
@@ -681,6 +761,7 @@ const AdminPortal = () => {
                 />
               </div>
             ) : (
+              /* ---- File Manager Grid ---- */
               <div>
                 <div className="flex items-center justify-between mb-6">
                   <h2 className="text-2xl font-bold text-foreground">Medical Records</h2>
@@ -688,6 +769,7 @@ const AdminPortal = () => {
                     <Plus className="w-4 h-4 mr-2" /> Create New Record
                   </Button>
                 </div>
+
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {records.map((rec) => (
                     <button
@@ -703,6 +785,7 @@ const AdminPortal = () => {
                     </button>
                   ))}
                 </div>
+
                 {records.length === 0 && (
                   <div className="bg-card rounded-lg border border-border p-12 text-center mt-4">
                     <FolderOpen className="w-16 h-16 text-muted-foreground mx-auto mb-4" />
@@ -714,6 +797,7 @@ const AdminPortal = () => {
           </div>
         )}
 
+        {/* ===== WAITLIST ===== */}
         {activeSection === "Waitlist" && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-6">Appointment Waitlist</h2>
@@ -761,6 +845,7 @@ const AdminPortal = () => {
           </div>
         )}
 
+        {/* ===== FEEDBACK ===== */}
         {activeSection === "Feedback" && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-6">Student Feedback</h2>
@@ -787,6 +872,7 @@ const AdminPortal = () => {
           </div>
         )}
 
+        {/* ===== ANNOUNCEMENTS ===== */}
         {activeSection === "Announcements" && (
           <div>
             <div className="flex items-center justify-between mb-6">
@@ -795,6 +881,7 @@ const AdminPortal = () => {
                 <Plus className="w-4 h-4 mr-2" /> New Announcement
               </Button>
             </div>
+
             {announcements.length === 0 ? (
               <div className="bg-card rounded-lg border border-border p-8 text-center">
                 <Megaphone className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
@@ -820,6 +907,8 @@ const AdminPortal = () => {
                 ))}
               </div>
             )}
+
+            {/* Add Announcement Dialog */}
             <Dialog open={showAddAnnouncement} onOpenChange={setShowAddAnnouncement}>
               <DialogContent>
                 <DialogHeader>
