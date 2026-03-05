@@ -14,7 +14,8 @@ import ClinicSidebar from "@/components/ClinicSidebar";
 import {
   Users, CalendarCheck, FolderOpen, Clock, MessageSquare,
   Plus, FileText, X, Check, Bold, Italic, Underline, List,
-  AlignLeft, AlignCenter, AlignRight, Save, UserPlus
+  AlignLeft, AlignCenter, AlignRight, Save, UserPlus, Megaphone,
+  Search, Trash2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,6 +42,15 @@ const AdminPortal = () => {
   const [appointments, setAppointments] = useState<any[]>([]);
   const [waitlist, setWaitlist] = useState<any[]>([]);
   const [feedback, setFeedback] = useState<any[]>([]);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+
+  /* Patient search */
+  const [patientSearch, setPatientSearch] = useState("");
+
+  /* Announcement form */
+  const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
+  const [announcementTitle, setAnnouncementTitle] = useState("");
+  const [announcementMessage, setAnnouncementMessage] = useState("");
   const [records, setRecords] = useState<any[]>([]);
 
   /* Add patient modal state */
@@ -68,6 +78,7 @@ const AdminPortal = () => {
     { label: "Record", icon: FolderOpen, onClick: () => setActiveSection("Record") },
     { label: "Waitlist", icon: Clock, onClick: () => setActiveSection("Waitlist") },
     { label: "Feedback", icon: MessageSquare, onClick: () => setActiveSection("Feedback") },
+    { label: "Announcements", icon: Megaphone, onClick: () => setActiveSection("Announcements") },
   ];
 
   /* Check admin auth and load all data */
@@ -91,18 +102,58 @@ const AdminPortal = () => {
 
   /* Load all data from Supabase */
   const loadData = async () => {
-    const [pRes, aRes, wRes, fRes, rRes] = await Promise.all([
+    const [pRes, aRes, wRes, fRes, rRes, annRes] = await Promise.all([
       supabase.from("patients").select("*").order("full_name"),
       supabase.from("appointments").select("*").eq("status", "pending").order("created_at"),
       supabase.from("appointments").select("*").in("status", ["approved", "waitlisted"]).order("created_at"),
       supabase.from("feedback").select("*").order("created_at", { ascending: false }),
       supabase.from("records").select("*").order("created_at", { ascending: false }),
+      supabase.from("announcements").select("*").order("created_at", { ascending: false }),
     ]);
     if (pRes.data) setPatients(pRes.data);
     if (aRes.data) setAppointments(aRes.data);
     if (wRes.data) setWaitlist(wRes.data);
     if (fRes.data) setFeedback(fRes.data);
     if (rRes.data) setRecords(rRes.data);
+    if (annRes.data) setAnnouncements(annRes.data);
+  };
+
+  /* Filtered patients based on search */
+  const filteredPatients = patients.filter((p) => {
+    const q = patientSearch.toLowerCase();
+    return (
+      p.full_name?.toLowerCase().includes(q) ||
+      p.lrn?.toLowerCase().includes(q) ||
+      p.grade?.toLowerCase().includes(q)
+    );
+  });
+
+  /* Add announcement */
+  const handleAddAnnouncement = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const { error } = await supabase.from("announcements").insert({
+      title: announcementTitle,
+      message: announcementMessage,
+    });
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      toast({ title: "Announcement Posted!" });
+      setShowAddAnnouncement(false);
+      setAnnouncementTitle("");
+      setAnnouncementMessage("");
+      loadData();
+    }
+  };
+
+  /* Delete announcement */
+  const handleDeleteAnnouncement = async (id: string) => {
+    const { error } = await supabase.from("announcements").delete().eq("id", id);
+    if (error) {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    } else {
+      loadData();
+    }
   };
 
   /* Check if grade is SHS (11 or 12) */
@@ -230,9 +281,20 @@ const AdminPortal = () => {
               </Button>
             </div>
 
+            {/* Search bar */}
+            <div className="relative mb-6 max-w-md">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by name, LRN, or grade..."
+                value={patientSearch}
+                onChange={(e) => setPatientSearch(e.target.value)}
+                className="pl-10"
+              />
+            </div>
+
             {/* Patient cards grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {patients.map((p) => (
+              {filteredPatients.map((p) => (
                 <div key={p.id} className="bg-card rounded-lg border border-border p-5 hover:shadow-md transition-shadow">
                   <h3 className="font-semibold text-card-foreground text-lg mb-2">{p.full_name}</h3>
                   <div className="space-y-1 text-sm text-muted-foreground">
@@ -581,6 +643,66 @@ const AdminPortal = () => {
                 ))}
               </div>
             )}
+          </div>
+        )}
+
+        {/* ===== ANNOUNCEMENTS ===== */}
+        {activeSection === "Announcements" && (
+          <div>
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-foreground">Manage Announcements</h2>
+              <Button onClick={() => setShowAddAnnouncement(true)}>
+                <Plus className="w-4 h-4 mr-2" /> New Announcement
+              </Button>
+            </div>
+
+            {announcements.length === 0 ? (
+              <div className="bg-card rounded-lg border border-border p-8 text-center">
+                <Megaphone className="w-12 h-12 text-muted-foreground mx-auto mb-3" />
+                <p className="text-muted-foreground">No announcements yet.</p>
+              </div>
+            ) : (
+              <div className="space-y-3 max-w-2xl">
+                {announcements.map((a) => (
+                  <div key={a.id} className="bg-card rounded-lg border border-border p-5">
+                    <div className="flex items-start justify-between">
+                      <div>
+                        <p className="text-sm text-accent font-semibold mb-1">
+                          {new Date(a.created_at).toLocaleDateString()}
+                          {a.title && ` — ${a.title}`}
+                        </p>
+                        <p className="text-card-foreground">{a.message}</p>
+                      </div>
+                      <Button size="icon" variant="ghost" onClick={() => handleDeleteAnnouncement(a.id)}>
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Add Announcement Dialog */}
+            <Dialog open={showAddAnnouncement} onOpenChange={setShowAddAnnouncement}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>New Announcement</DialogTitle>
+                </DialogHeader>
+                <form onSubmit={handleAddAnnouncement} className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Title (optional)</label>
+                    <Input value={announcementTitle} onChange={(e) => setAnnouncementTitle(e.target.value)} placeholder="e.g. Vaccination Schedule" />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Message</label>
+                    <Textarea value={announcementMessage} onChange={(e) => setAnnouncementMessage(e.target.value)} rows={4} required placeholder="Write your announcement..." />
+                  </div>
+                  <DialogFooter>
+                    <Button type="submit">Post Announcement</Button>
+                  </DialogFooter>
+                </form>
+              </DialogContent>
+            </Dialog>
           </div>
         )}
       </main>
