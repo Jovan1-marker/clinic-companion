@@ -9,6 +9,7 @@
  */
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
+import { supabase } from "@/integrations/supabase/client";
 import { Stethoscope, Heart, Pill, ClipboardList, ShieldCheck, Activity } from "lucide-react";
 import slide1 from "@/assets/slide1.jpg";
 import slide2 from "@/assets/slide2.jpg";
@@ -35,6 +36,14 @@ const Index = () => {
   const navigate = useNavigate();
   /* Track which slide is currently visible */
   const [currentSlide, setCurrentSlide] = useState(0);
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+
+  /* Load announcements from database */
+  useEffect(() => {
+    supabase.from("announcements").select("*").order("created_at", { ascending: false }).then(({ data }) => {
+      if (data) setAnnouncements(data);
+    });
+  }, []);
 
   /* Auto-advance slideshow every 8 seconds */
   useEffect(() => {
@@ -185,18 +194,19 @@ const Index = () => {
           </h2>
           <div className="w-16 h-1 bg-accent mx-auto mb-8 rounded-full" />
           <div className="max-w-2xl mx-auto space-y-4">
-            <div className="bg-card rounded-lg border border-border p-5">
-              <p className="text-sm text-accent font-semibold mb-1">March 5, 2026</p>
-              <p className="text-card-foreground">Annual physical examinations will begin next week. Please check your schedule on the student portal.</p>
-            </div>
-            <div className="bg-card rounded-lg border border-border p-5">
-              <p className="text-sm text-accent font-semibold mb-1">March 1, 2026</p>
-              <p className="text-card-foreground">Flu vaccines are now available at the clinic. Visit during break hours to get vaccinated.</p>
-            </div>
-            <div className="bg-card rounded-lg border border-border p-5">
-              <p className="text-sm text-accent font-semibold mb-1">February 25, 2026</p>
-              <p className="text-card-foreground">Reminder: Students with medical conditions should update their health records this semester.</p>
-            </div>
+            {announcements.length === 0 ? (
+              <p className="text-center text-muted-foreground">No announcements at this time.</p>
+            ) : (
+              announcements.map((a) => (
+                <div key={a.id} className="bg-card rounded-lg border border-border p-5">
+                  <p className="text-sm text-accent font-semibold mb-1">
+                    {new Date(a.created_at).toLocaleDateString()}
+                    {a.title && ` — ${a.title}`}
+                  </p>
+                  <p className="text-card-foreground">{a.message}</p>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </section>

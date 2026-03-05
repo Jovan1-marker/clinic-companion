@@ -34,6 +34,36 @@ const clinicServices = [
   "Medical Certificate",
 ];
 
+/* Dynamic announcements sub-component */
+const AnnouncementsSection = () => {
+  const [announcements, setAnnouncements] = useState<any[]>([]);
+  useEffect(() => {
+    supabase.from("announcements").select("*").order("created_at", { ascending: false }).then(({ data }) => {
+      if (data) setAnnouncements(data);
+    });
+  }, []);
+  return (
+    <div>
+      <h2 className="text-2xl font-bold text-foreground mb-6">Announcements</h2>
+      <div className="space-y-4 max-w-2xl">
+        {announcements.length === 0 ? (
+          <p className="text-muted-foreground">No announcements at this time.</p>
+        ) : (
+          announcements.map((a) => (
+            <div key={a.id} className="bg-card rounded-lg border border-border p-5">
+              <p className="text-sm text-accent font-semibold mb-1">
+                {new Date(a.created_at).toLocaleDateString()}
+                {a.title && ` — ${a.title}`}
+              </p>
+              <p className="text-card-foreground">{a.message}</p>
+            </div>
+          ))
+        )}
+      </div>
+    </div>
+  );
+};
+
 const StudentPortal = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -315,19 +345,7 @@ const StudentPortal = () => {
 
         {/* ===== ANNOUNCEMENTS ===== */}
         {activeSection === "Announcements" && (
-          <div>
-            <h2 className="text-2xl font-bold text-foreground mb-6">Announcements</h2>
-            <div className="space-y-4 max-w-2xl">
-              <div className="bg-card rounded-lg border border-border p-5">
-                <p className="text-sm text-accent font-semibold mb-1">March 5, 2026</p>
-                <p className="text-card-foreground">Annual physical examinations begin next week.</p>
-              </div>
-              <div className="bg-card rounded-lg border border-border p-5">
-                <p className="text-sm text-accent font-semibold mb-1">March 1, 2026</p>
-                <p className="text-card-foreground">Flu vaccines are now available at the clinic.</p>
-              </div>
-            </div>
-          </div>
+          <AnnouncementsSection />
         )}
 
         {/* ===== COMMENT / FEEDBACK ===== */}
