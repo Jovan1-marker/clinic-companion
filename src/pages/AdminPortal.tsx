@@ -6,7 +6,8 @@ import {
   Users, CalendarCheck, FolderOpen, Clock, MessageSquare,
   Plus, FileText, X, Check, Bold, Italic, Underline, List,
   AlignLeft, AlignCenter, AlignRight, Save, Megaphone,
-  Search, Trash2, Pencil, CheckSquare, AlertTriangle, Activity
+  Search, Trash2, Pencil, CheckSquare, AlertTriangle, Activity,
+  Download
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +20,7 @@ import {
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue
 } from "@/components/ui/select";
+import jsPDF from "jspdf";
 
 const strands = ["ICT", "GAS", "HUMSS", "STEM", "ABM"];
 
@@ -26,37 +28,67 @@ const AdminPortal = () => {
   const navigate = useNavigate();
   const { toast } = useToast();
   const [activeSection, setActiveSection] = useState("Patient");
-
   const [patients, setPatients] = useState<any[]>([]);
   const [appointments, setAppointments] = useState<any[]>([]);
   const [waitlist, setWaitlist] = useState<any[]>([]);
   const [feedback, setFeedback] = useState<any[]>([]);
   const [announcements, setAnnouncements] = useState<any[]>([]);
   const [records, setRecords] = useState<any[]>([]);
-
   const [patientSearch, setPatientSearch] = useState("");
-
   const [showAddAnnouncement, setShowAddAnnouncement] = useState(false);
   const [announcementTitle, setAnnouncementTitle] = useState("");
   const [announcementMessage, setAnnouncementMessage] = useState("");
-
   const [showEditPatient, setShowEditPatient] = useState(false);
   const [editPatient, setEditPatient] = useState<any>(null);
-
   const [showAddPatient, setShowAddPatient] = useState(false);
   const [newPatient, setNewPatient] = useState({
     full_name: "", lrn: "", grade: "", strand: "", section: "",
     height: "", weight: "", bmi_status: "", medical_history: "",
     clinic_exposure: "", email: "", home_address: "", contact_no: ""
   });
-
   const [showCalendar, setShowCalendar] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
   const [approvingId, setApprovingId] = useState<string | null>(null);
-
   const [editingRecord, setEditingRecord] = useState<any>(null);
   const [recordTitle, setRecordTitle] = useState("");
   const editorRef = useRef<HTMLDivElement>(null);
+
+  const handleDownloadRecord = (record: any) => {
+    try {
+      const doc = new jsPDF();
+      doc.setFontSize(18);
+      doc.text(record.title || "Untitled Medical Record", 20, 20);
+      doc.setFontSize(11);
+      doc.setTextColor(100);
+      doc.text(`Created: ${new Date(record.created_at).toLocaleDateString()}`, 20, 30);
+      if (record.updated_at) {
+        doc.text(`Last updated: ${new Date(record.updated_at).toLocaleDateString()}`, 20, 37);
+      }
+      doc.setTextColor(0);
+      doc.setFontSize(12);
+      const content = record.content || "No content available.";
+      const plainText = content.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim();
+      const splitText = doc.splitTextToSize(plainText, 170);
+      let y = 50;
+      splitText.forEach((line: string) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        doc.text(line, 20, y);
+        y += 7;
+      });
+      const pageCount = doc.getNumberOfPages();
+      for (let i = 1; i <= pageCount; i++) {
+        doc.setPage(i);
+        doc.setFontSize(9);
+        doc.setTextColor(140);
+        doc.text(`Clinic Companion • Page ${i} of ${pageCount}`, 105, 290, { align: "center" });
+      }
+      doc.save(`${record.title || "medical-record"}-${record.id.slice(0,8)}.pdf`);
+      toast({ title: "Download started", description: "PDF file is being saved..." });
+    } catch (err) {
+      console.error("PDF generation failed:", err);
+      toast({ title: "Download failed", description: "Could not generate PDF.", variant: "destructive" });
+    }
+  };
 
   const sidebarLinks = [
     { label: "Patient", icon: Users, onClick: () => setActiveSection("Patient") },
@@ -73,11 +105,7 @@ const AdminPortal = () => {
     const init = async () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) { navigate("/login"); return; }
-      const { data: prof } = await supabase
-        .from("profiles")
-        .select("role")
-        .eq("id", user.id)
-        .maybeSingle();
+      const { data: prof } = await supabase.from("profiles").select("role").eq("id", user.id).maybeSingle();
       if (prof?.role !== "admin") { navigate("/login"); return; }
       loadData();
     };
@@ -168,13 +196,10 @@ const AdminPortal = () => {
   const handleEditPatient = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editPatient) return;
-
     const { id, _grade, _strand, _section } = editPatient;
-
     const gradeDisplay = _strand
       ? `${_grade} ${_strand} - ${_section}`
       : `${_grade} - ${_section}`;
-
     const updateData = {
       full_name: editPatient.full_name,
       lrn: editPatient.lrn || null,
@@ -188,7 +213,6 @@ const AdminPortal = () => {
       home_address: editPatient.home_address || null,
       contact_no: editPatient.contact_no || null,
     };
-
     const { error } = await supabase.from("patients").update(updateData).eq("id", id);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -224,11 +248,9 @@ const AdminPortal = () => {
 
   const handleAddPatient = async (e: React.FormEvent) => {
     e.preventDefault();
-
     const gradeDisplay = newPatient.strand
       ? `${newPatient.grade} ${newPatient.strand} - ${newPatient.section}`
       : `${newPatient.grade} - ${newPatient.section}`;
-
     const patientData = {
       full_name: newPatient.full_name,
       lrn: newPatient.lrn,
@@ -242,7 +264,6 @@ const AdminPortal = () => {
       home_address: newPatient.home_address || null,
       contact_no: newPatient.contact_no || null,
     };
-
     const { error } = await supabase.from("patients").insert(patientData);
     if (error) {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -330,7 +351,6 @@ const AdminPortal = () => {
     <div className="flex min-h-screen">
       <ClinicSidebar links={sidebarLinks} title="Admin Portal" activeLink={activeSection} />
       <main className="flex-1 bg-background p-8 overflow-auto">
-
         {activeSection === "Patient" && (
           <div>
             <div className="flex items-center justify-between mb-2">
@@ -350,7 +370,6 @@ const AdminPortal = () => {
                 </Button>
               </div>
             </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6 mt-4">
               <div className="bg-card rounded-lg border border-border p-4">
                 <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Total Patients</p>
@@ -373,7 +392,6 @@ const AdminPortal = () => {
                 <Activity className="w-8 h-8 text-muted-foreground/30 ml-auto -mt-6" />
               </div>
             </div>
-
             <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-4">
               {filteredPatients.map((p) => (
                 <div key={p.id} className="bg-card rounded-lg border border-border p-4 hover:shadow-md transition-shadow">
@@ -423,7 +441,6 @@ const AdminPortal = () => {
                 </div>
               ))}
             </div>
-
             <Dialog open={showAddPatient} onOpenChange={setShowAddPatient}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Add New Patient</DialogTitle></DialogHeader>
@@ -459,11 +476,7 @@ const AdminPortal = () => {
                   {newPatient.grade && (
                     <div>
                       <label className="block text-sm font-medium mb-1">Section</label>
-                      <Input
-                        value={newPatient.section}
-                        onChange={(e) => setNewPatient({ ...newPatient, section: e.target.value })}
-                        placeholder="e.g. THALES, EUCLID, or custom name"
-                      />
+                      <Input value={newPatient.section} onChange={(e) => setNewPatient({ ...newPatient, section: e.target.value })} placeholder="e.g. THALES, EUCLID, or custom name" />
                     </div>
                   )}
                   <div className="grid grid-cols-2 gap-3">
@@ -500,7 +513,6 @@ const AdminPortal = () => {
                 </form>
               </DialogContent>
             </Dialog>
-
             <Dialog open={showEditPatient} onOpenChange={setShowEditPatient}>
               <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
                 <DialogHeader><DialogTitle>Edit Patient</DialogTitle></DialogHeader>
@@ -537,11 +549,7 @@ const AdminPortal = () => {
                     {editPatient._grade && (
                       <div>
                         <label className="block text-sm font-medium mb-1">Section</label>
-                        <Input
-                          value={editPatient._section || ""}
-                          onChange={(e) => setEditPatient({ ...editPatient, _section: e.target.value })}
-                          placeholder="e.g. THALES, EUCLID, or custom name"
-                        />
+                        <Input value={editPatient._section || ""} onChange={(e) => setEditPatient({ ...editPatient, _section: e.target.value })} placeholder="e.g. THALES, EUCLID, or custom name" />
                       </div>
                     )}
                     <div className="grid grid-cols-2 gap-3">
@@ -593,7 +601,6 @@ const AdminPortal = () => {
             </Dialog>
           </div>
         )}
-
         {activeSection === "Appointment" && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-6">Pending Appointments</h2>
@@ -656,7 +663,6 @@ const AdminPortal = () => {
             </Dialog>
           </div>
         )}
-
         {activeSection === "Record" && (
           <div>
             {editingRecord ? (
@@ -718,17 +724,30 @@ const AdminPortal = () => {
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
                   {records.map((rec) => (
-                    <button
+                    <div
                       key={rec.id}
-                      onClick={() => { setEditingRecord(rec); setRecordTitle(rec.title); }}
-                      className="bg-card rounded-lg border border-border p-4 hover:shadow-md hover:border-accent transition-all text-center group"
+                      className="group relative bg-card rounded-lg border border-border p-4 hover:shadow-md hover:border-accent transition-all"
                     >
-                      <FileText className="w-12 h-12 text-primary mx-auto mb-3 group-hover:text-accent transition-colors" />
-                      <p className="text-sm font-medium text-card-foreground truncate">{rec.title}</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        {new Date(rec.created_at).toLocaleDateString()}
-                      </p>
-                    </button>
+                      <button
+                        onClick={() => { setEditingRecord(rec); setRecordTitle(rec.title); }}
+                        className="w-full text-center"
+                      >
+                        <FileText className="w-12 h-12 text-primary mx-auto mb-3 group-hover:text-accent transition-colors" />
+                        <p className="text-sm font-medium text-card-foreground truncate">{rec.title}</p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {new Date(rec.created_at).toLocaleDateString()}
+                        </p>
+                      </button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => handleDownloadRecord(rec)}
+                        title="Download as PDF"
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                    </div>
                   ))}
                 </div>
                 {records.length === 0 && (
@@ -741,7 +760,6 @@ const AdminPortal = () => {
             )}
           </div>
         )}
-
         {activeSection === "Waitlist" && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-6">Appointment Waitlist</h2>
@@ -786,7 +804,6 @@ const AdminPortal = () => {
             )}
           </div>
         )}
-
         {activeSection === "Feedback" && (
           <div>
             <h2 className="text-2xl font-bold text-foreground mb-6">Student Feedback</h2>
@@ -812,7 +829,6 @@ const AdminPortal = () => {
             )}
           </div>
         )}
-
         {activeSection === "Announcements" && (
           <div>
             <div className="flex items-center justify-between mb-6">
