@@ -723,32 +723,29 @@ const AdminPortal = () => {
                   </Button>
                 </div>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                  {records.map((rec) => (
-                    <div
-                      key={rec.id}
-                      className="group relative bg-card rounded-lg border border-border p-4 hover:shadow-md hover:border-accent transition-all"
-                    >
-                      <button
-                        onClick={() => { setEditingRecord(rec); setRecordTitle(rec.title); }}
-                        className="w-full text-center"
-                      >
-                        <FileText className="w-12 h-12 text-primary mx-auto mb-3 group-hover:text-accent transition-colors" />
-                        <p className="text-sm font-medium text-card-foreground truncate">{rec.title}</p>
-                        <p className="text-xs text-muted-foreground mt-1">
-                          {new Date(rec.created_at).toLocaleDateString()}
-                        </p>
-                      </button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="absolute top-3 right-3 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => handleDownloadRecord(rec)}
-                        title="Download as PDF"
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                    </div>
-                  ))}
+                   {records.map((rec) => (
+                     <div
+                       key={rec.id}
+                       className="group relative bg-card rounded-lg border border-border p-4 hover:shadow-md hover:border-primary/50 transition-all"
+                     >
+                       <div className="text-center pb-1">
+                         <FileText className="w-12 h-12 text-primary mx-auto mb-3 group-hover:scale-105 transition-transform" />
+                         <p className="text-sm font-medium truncate px-2">{rec.title || "Untitled"}</p>
+                         <p className="text-xs text-muted-foreground mt-1">
+                           {new Date(rec.created_at).toLocaleDateString()}
+                         </p>
+                       </div>
+
+                       <Button
+                         variant="ghost"
+                         size="icon"
+                         className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity duration-200"
+                         onClick={() => handleDownloadRecord(rec)}
+                       >
+                         <Download className="h-4 w-4" />
+                       </Button>
+                     </div>
+                   ))}
                 </div>
                 {records.length === 0 && (
                   <div className="bg-card rounded-lg border border-border p-12 text-center mt-4">
