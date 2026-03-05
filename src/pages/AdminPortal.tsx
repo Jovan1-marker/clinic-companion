@@ -92,6 +92,9 @@ const AdminPortal = () => {
     { label: "Announcements", icon: Megaphone, onClick: () => setActiveSection("Announcements") },
   ];
 
+  /* Check if grade is SHS (11-12) */
+  const isSHS = (grade: string) => grade === "11" || grade === "12";
+
   /* Check admin auth and load all data */
   useEffect(() => {
     const init = async () => {
@@ -243,7 +246,6 @@ const AdminPortal = () => {
     overweight: patients.filter(p => p.bmi_status?.toLowerCase() === "overweight").length,
     underweight: patients.filter(p => p.bmi_status?.toLowerCase() === "underweight").length,
   };
-  const isSHS = (grade: string) => grade === "11" || grade === "12";
 
   /* Add new patient */
   const handleAddPatient = async (e: React.FormEvent) => {
@@ -467,15 +469,19 @@ const AdminPortal = () => {
                     <label className="block text-sm font-medium mb-1">LRN</label>
                     <Input value={newPatient.lrn} onChange={(e) => setNewPatient({ ...newPatient, lrn: e.target.value })} required />
                   </div>
+
+                  {/* Grade Dropdown */}
                   <div>
                     <label className="block text-sm font-medium mb-1">Grade</label>
-                    <Select value={newPatient.grade} onValueChange={(v) => setNewPatient({ ...newPatient, grade: v, strand: "" })}>
+                    <Select value={newPatient.grade} onValueChange={(v) => setNewPatient({ ...newPatient, grade: v, strand: "", section: "" })}>
                       <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
                       <SelectContent>
-                        {["7", "8", "9", "10", "11", "12"].map((g) => (<SelectItem key={g} value={g}>Grade {g}</SelectItem>))}
+                        {["6", "7", "8", "9", "10", "11", "12"].map((g) => (<SelectItem key={g} value={g}>Grade {g}</SelectItem>))}
                       </SelectContent>
                     </Select>
                   </div>
+
+                  {/* Strand Dropdown (only for grades 11-12) */}
                   {isSHS(newPatient.grade) && (
                     <div>
                       <label className="block text-sm font-medium mb-1">Strand</label>
@@ -487,15 +493,22 @@ const AdminPortal = () => {
                       </Select>
                     </div>
                   )}
-                  <div>
-                    <label className="block text-sm font-medium mb-1">Section</label>
-                    <Select value={newPatient.section} onValueChange={(v) => setNewPatient({ ...newPatient, section: v })}>
-                      <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
-                      <SelectContent>
-                        {sections.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
-                      </SelectContent>
-                    </Select>
-                  </div>
+
+                  {/* Section Dropdown/Input (for all grades, but label changes) */}
+                  {newPatient.grade && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        {isSHS(newPatient.grade) ? "Section" : "Section"}
+                      </label>
+                      <Select value={newPatient.section} onValueChange={(v) => setNewPatient({ ...newPatient, section: v })}>
+                        <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
+                        <SelectContent>
+                          {sections.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
                   <div className="grid grid-cols-2 gap-3">
                     <div>
                       <label className="block text-sm font-medium mb-1">Height</label>
@@ -545,15 +558,19 @@ const AdminPortal = () => {
                       <label className="block text-sm font-medium mb-1">LRN</label>
                       <Input value={editPatient.lrn || ""} onChange={(e) => setEditPatient({ ...editPatient, lrn: e.target.value })} />
                     </div>
+
+                    {/* Grade Dropdown */}
                     <div>
                       <label className="block text-sm font-medium mb-1">Grade</label>
-                      <Select value={editPatient._grade || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _grade: v, _strand: isSHS(v) ? (editPatient._strand || "") : "" })}>
+                      <Select value={editPatient._grade || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _grade: v, _strand: "" })}>
                         <SelectTrigger><SelectValue placeholder="Select grade" /></SelectTrigger>
                         <SelectContent>
-                          {["7", "8", "9", "10", "11", "12"].map((g) => (<SelectItem key={g} value={g}>Grade {g}</SelectItem>))}
+                          {["6", "7", "8", "9", "10", "11", "12"].map((g) => (<SelectItem key={g} value={g}>Grade {g}</SelectItem>))}
                         </SelectContent>
                       </Select>
                     </div>
+
+                    {/* Strand Dropdown (only for grades 11-12) */}
                     {isSHS(editPatient._grade || "") && (
                       <div>
                         <label className="block text-sm font-medium mb-1">Strand</label>
@@ -565,15 +582,19 @@ const AdminPortal = () => {
                         </Select>
                       </div>
                     )}
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Section</label>
-                      <Select value={editPatient._section || ""} onValueChange={(v) => setEditPatient({ ...editPatient, _section: v })}>
-                        <SelectTrigger><SelectValue placeholder="Select section" /></SelectTrigger>
-                        <SelectContent>
-                          {sections.map((s) => (<SelectItem key={s} value={s}>{s}</SelectItem>))}
-                        </SelectContent>
-                      </Select>
-                    </div>
+
+                    {/* Section - Text Input for Admin Panel */}
+                    {editPatient._grade && (
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Section</label>
+                        <Input 
+                          value={editPatient._section || ""} 
+                          onChange={(e) => setEditPatient({ ...editPatient, _section: e.target.value })}
+                          placeholder="e.g. THALES, EUCLID"
+                        />
+                      </div>
+                    )}
+
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <label className="block text-sm font-medium mb-1">Height</label>
